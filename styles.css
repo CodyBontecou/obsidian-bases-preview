@@ -1,0 +1,58 @@
+/* ------------------------------------------------------------------ */
+/*  Bases Preview – injected styles                                   */
+/* ------------------------------------------------------------------ */
+
+/* Preview column header */
+.bases-preview-th {
+  font-weight: 600;
+  color: var(--text-muted);
+  font-size: var(--font-smallest);
+  white-space: nowrap;
+  padding: 4px 8px;
+}
+
+/* Preview cell inside each row */
+.bases-preview-cell {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-muted);
+  font-size: var(--font-smallest);
+  padding: 4px 8px;
+  line-height: 1.4;
+  cursor: default;
+}
+
+/* Expand on hover so the user can read more */
+.bases-preview-cell:hover {
+  white-space: normal;
+  word-break: break-word;
+  max-width: 480px;
+  color: var(--text-normal);
+  background: var(--background-secondary);
+  border-radius: 4px;
+  z-index: 10;
+  position: relative;
+}
+
+/* "+ New note" button below the table */
+.bases-preview-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 4px 12px;
+  border: 1px dashed var(--interactive-accent);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--interactive-accent);
+  font-size: var(--font-small);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.bases-preview-add-btn:hover {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+}

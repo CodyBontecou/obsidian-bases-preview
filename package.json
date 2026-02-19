@@ -1,0 +1,26 @@
+{
+  "name": "obsidian-bases-preview",
+  "version": "1.0.0",
+  "description": "Show inline note content previews inside Obsidian Bases table rows, plus a quick-add button for new notes.",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production"
+  },
+  "keywords": [
+    "obsidian",
+    "plugin",
+    "bases",
+    "preview"
+  ],
+  "author": "Cody Bontecou",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "builtin-modules": "^3.3.0",
+    "esbuild": "0.20.0",
+    "obsidian": "latest",
+    "tslib": "2.6.2",
+    "typescript": "5.3.3"
+  }
+}
