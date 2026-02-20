@@ -3,7 +3,7 @@
   "name": "Bases Preview",
   "version": "1.0.0",
   "minAppVersion": "1.5.0",
-  "description": "Show inline note content previews inside Obsidian Bases table rows and quickly add new notes.",
+  "description": "Show inline note content previews inside Bases table rows and quickly add new notes.",
   "author": "Cody Bontecou",
   "authorUrl": "https://github.com/CodyBontecou",
   "isDesktopOnly": false
