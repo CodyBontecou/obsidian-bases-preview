@@ -87,6 +87,11 @@ obsidian-bases-preview/
 
 ---
 
+
+## Inspiration
+
+This plugin was built in response to a request by u/tashmoo and u/DeliriumTrigger in [this Reddit thread](https://www.reddit.com/r/ObsidianMD/comments/1r8vw0w/anyone_have_a_plugin_request/) — inline note previews in Bases table rows with quick-add.
+
 ## License
 
 MIT
