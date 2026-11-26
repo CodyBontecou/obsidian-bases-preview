@@ -24,7 +24,10 @@ var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: tru
 // main.ts
 var main_exports = {};
 __export(main_exports, {
-  default: () => BasesPreviewPlugin
+  VIEW_TYPE: () => VIEW_TYPE,
+  default: () => BasesPreviewPlugin,
+  extractBody: () => extractBody,
+  extractHeadingSection: () => extractHeadingSection
 });
 module.exports = __toCommonJS(main_exports);
 var import_obsidian = require("obsidian");
@@ -34,300 +37,212 @@ var DEFAULT_SETTINGS = {
   headingName: "",
   showAddButton: true
 };
+var VIEW_TYPE = "bases-preview-table";
 var BasesPreviewPlugin = class extends import_obsidian.Plugin {
   constructor() {
     super(...arguments);
     this.settings = DEFAULT_SETTINGS;
-    /** Active MutationObservers so we can disconnect on unload */
-    this.observers = [];
-    /** Debounce timer for observer callbacks */
-    this.debounceTimer = null;
+    /** Open preview views, so a settings change can re-render them. */
+    this.views = /* @__PURE__ */ new Set();
   }
-  /* ---- lifecycle --------------------------------------------- */
   async onload() {
     await this.loadSettings();
     this.addSettingTab(new BasesPreviewSettingTab(this.app, this));
-    this.app.workspace.onLayoutReady(() => {
-      this.scanAndInject();
-      this.installGlobalObserver();
+    this.registerBasesView(VIEW_TYPE, {
+      name: "Table with previews",
+      icon: "table-properties",
+      factory: (controller, containerEl) => new PreviewTableView(controller, containerEl, this)
     });
-  }
-  onunload() {
-    this.disconnectObservers();
-    this.removeInjected();
-  }
-  /* ---- settings ---------------------------------------------- */
-  async loadSettings() {
-    this.settings = Object.assign(
-      {},
-      DEFAULT_SETTINGS,
-      await this.loadData()
+    this.registerEvent(
+      this.app.vault.on("modify", (file) => {
+        if (!(file instanceof import_obsidian.TFile))
+          return;
+        for (const view of this.views)
+          view.onFileModified(file);
+      })
     );
+  }
+  async loadSettings() {
+    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
   }
   async saveSettings() {
     await this.saveData(this.settings);
-    this.removeInjected();
-    this.scanAndInject();
+    for (const view of this.views)
+      view.render();
   }
-  /* ---- observer management ----------------------------------- */
-  installGlobalObserver() {
-    const target = document.body;
-    const observer = new MutationObserver(() => {
-      if (this.debounceTimer)
-        clearTimeout(this.debounceTimer);
-      this.debounceTimer = setTimeout(() => this.scanAndInject(), 250);
-    });
-    observer.observe(target, { childList: true, subtree: true });
-    this.observers.push(observer);
-  }
-  disconnectObservers() {
-    for (const o of this.observers)
-      o.disconnect();
-    this.observers = [];
-    if (this.debounceTimer) {
-      clearTimeout(this.debounceTimer);
-      this.debounceTimer = null;
-    }
-  }
-  /* ---- DOM scanning & injection ------------------------------ */
-  /**
-   * Find every Bases table view in the DOM and inject previews +
-   * an optional "+" button.
-   *
-   * Bases renders inside `.workspace-leaf` containers.  Each Base
-   * table view uses a `<table>` element.  Rows that link to a note
-   * contain an internal‑link element whose `data‑href` / `href`
-   * attribute points at the file.
-   */
-  scanAndInject() {
-    const tables = document.querySelectorAll(
-      ".bases-table table, table"
-    );
-    for (const table of Array.from(tables)) {
-      if (!this.isBasesTable(table))
-        continue;
-      this.injectPreviewsIntoTable(table);
-      if (this.settings.showAddButton) {
-        this.injectAddButton(table);
-      }
-    }
-  }
-  /**
-   * Heuristic: a table is a Bases table if it (or an ancestor)
-   * carries a class containing "bases" or if the closest
-   * `.workspace-leaf-content` has `[data-type="bases"]`.
-   */
-  isBasesTable(table) {
-    const leaf = table.closest(".workspace-leaf-content");
-    if (leaf && leaf.getAttribute("data-type") === "bases")
-      return true;
-    const parent = table.closest(
-      '[class*="bases"], [class*="database"], [class*="base-view"]'
-    );
-    if (parent)
-      return true;
-    return false;
-  }
-  /**
-   * Walk each <tr> of the table body, find the note link,
-   * read the note, and append a preview <td> (or a sub‑row).
-   */
-  async injectPreviewsIntoTable(table) {
-    const thead = table.querySelector("thead tr");
-    if (thead && !thead.querySelector(".bases-preview-th")) {
-      const th = document.createElement("th");
-      th.className = "bases-preview-th";
-      th.textContent = "Preview";
-      thead.appendChild(th);
-    }
-    const rows = table.querySelectorAll("tbody tr");
-    for (const row of Array.from(rows)) {
-      if (row.querySelector(".bases-preview-cell"))
-        continue;
-      const link = row.querySelector(
-        "a.internal-link, a[data-href]"
-      );
-      if (!link)
-        continue;
-      const href = link.getAttribute("data-href") || link.getAttribute("href");
-      if (!href)
-        continue;
-      const file = this.app.metadataCache.getFirstLinkpathDest(
-        href,
-        ""
-      );
-      if (!(file instanceof import_obsidian.TFile))
-        continue;
-      const preview = await this.getPreview(file);
-      const td = document.createElement("td");
-      td.className = "bases-preview-cell";
-      td.textContent = preview;
-      td.title = preview;
-      row.appendChild(td);
-    }
-  }
-  /**
-   * Read a file and return the preview string.
-   */
+  /* ---- preview text ------------------------------------------ */
   async getPreview(file) {
+    if (file.extension !== "md")
+      return "";
     try {
-      const content = await this.app.vault.cachedRead(file);
-      const body = this.extractBody(content);
+      const body = extractBody(await this.app.vault.cachedRead(file), this.settings);
       const len = this.settings.previewLength;
-      if (body.length <= len)
-        return body;
-      return body.slice(0, len) + "\u2026";
+      return body.length <= len ? body : body.slice(0, len).trimEnd() + "\u2026";
     } catch (e) {
       return "";
     }
   }
-  /**
-   * Extract the relevant body text based on settings.
-   */
-  extractBody(raw) {
-    let content = raw;
-    if (content.startsWith("---")) {
-      const end = content.indexOf("---", 3);
-      if (end !== -1) {
-        content = content.slice(end + 3).trim();
-      }
-    }
-    if (this.settings.contentSource === "heading" && this.settings.headingName) {
-      return this.extractHeadingSection(content, this.settings.headingName);
-    }
-    return content;
+};
+var PreviewTableView = class extends import_obsidian.BasesView {
+  constructor(controller, containerEl, plugin) {
+    super(controller);
+    this.plugin = plugin;
+    this.type = VIEW_TYPE;
+    /** Preview cells by file path, for refreshing after an edit. */
+    this.previewCells = /* @__PURE__ */ new Map();
+    /** Increments on each render so stale async previews are dropped. */
+    this.renderId = 0;
+    this.rootEl = containerEl.createDiv("bases-preview-view");
   }
-  /**
-   * Pull out the text under a specific heading (any level).
-   */
-  extractHeadingSection(content, heading) {
-    const lines = content.split("\n");
-    let capture = false;
-    let captureLevel = 0;
-    const result = [];
-    for (const line of lines) {
-      const match = line.match(/^(#{1,6})\s+(.*)/);
-      if (match) {
-        const level = match[1].length;
-        const title = match[2].trim();
-        if (capture) {
-          if (level <= captureLevel)
-            break;
-        }
-        if (title.toLowerCase() === heading.toLowerCase()) {
-          capture = true;
-          captureLevel = level;
-          continue;
-        }
-      }
-      if (capture) {
-        result.push(line);
-      }
-    }
-    return result.join("\n").trim();
+  onload() {
+    this.plugin.views.add(this);
   }
-  /* ---- Add-note button --------------------------------------- */
-  /**
-   * Inject a "+" button below the table to create a new note
-   * pre-populated with frontmatter matching the Base's filters.
-   */
-  injectAddButton(table) {
-    const wrapper = table.parentElement;
-    if (!wrapper)
+  onunload() {
+    this.plugin.views.delete(this);
+    this.rootEl.remove();
+  }
+  onDataUpdated() {
+    this.render();
+  }
+  render() {
+    const renderId = ++this.renderId;
+    const { rootEl } = this;
+    rootEl.empty();
+    this.previewCells.clear();
+    const data = this.data;
+    if (!data)
       return;
-    if (wrapper.querySelector(".bases-preview-add-btn"))
-      return;
-    const btn = document.createElement("button");
-    btn.className = "bases-preview-add-btn";
-    btn.textContent = "+ New note";
-    btn.title = "Create a new note for this Base";
-    btn.addEventListener("click", () => this.createNoteForBase(table));
-    wrapper.appendChild(btn);
-  }
-  /**
-   * Gather the Base's current filters / column headers and produce
-   * matching YAML frontmatter in a new note.
-   */
-  async createNoteForBase(table) {
-    const headers = [];
-    const thEls = table.querySelectorAll("thead th");
-    for (const th of Array.from(thEls)) {
-      if (th.classList.contains("bases-preview-th"))
-        continue;
-      const name = (th.textContent || "").trim();
-      if (name)
-        headers.push(name);
+    const properties = this.config.getOrder();
+    const scrollEl = rootEl.createDiv("bases-preview-scroll");
+    const table = scrollEl.createEl("table", { cls: "bases-preview-table" });
+    const headRow = table.createEl("thead").createEl("tr");
+    for (const prop of properties) {
+      headRow.createEl("th", { text: this.config.getDisplayName(prop) });
     }
-    const filterValues = {};
-    const firstRow = table.querySelector("tbody tr");
-    if (firstRow) {
-      const cells = firstRow.querySelectorAll("td");
-      cells.forEach((cell, i) => {
-        if (cell.classList.contains("bases-preview-cell"))
-          return;
-        if (headers[i]) {
-          const text = (cell.textContent || "").trim();
-          if (text && text.length < 60 && headers[i].toLowerCase() !== "name" && headers[i].toLowerCase() !== "file") {
-            filterValues[headers[i]] = text;
-          }
-        }
+    headRow.createEl("th", { cls: "bases-preview-th", text: "Preview" });
+    const colCount = properties.length + 1;
+    const tbody = table.createEl("tbody");
+    let rowCount = 0;
+    for (const group of data.groupedData) {
+      if (group.hasKey() && group.key) {
+        const td = tbody.createEl("tr", { cls: "bases-preview-group-row" }).createEl("td", { attr: { colspan: String(colCount) } });
+        this.renderValue(td, () => group.key);
+      }
+      for (const entry of group.entries) {
+        this.renderRow(tbody, entry, properties, renderId);
+        rowCount++;
+      }
+    }
+    if (rowCount === 0) {
+      tbody.createEl("tr").createEl("td", {
+        cls: "bases-preview-empty",
+        text: "No results",
+        attr: { colspan: String(colCount) }
       });
     }
-    const yamlLines = ["---"];
-    for (const [key, val] of Object.entries(filterValues)) {
-      yamlLines.push(`${key}: ${val}`);
+    if (this.plugin.settings.showAddButton) {
+      const btn = rootEl.createEl("button", {
+        cls: "bases-preview-add-btn",
+        text: "+ New note",
+        attr: { "aria-label": "Create a new note for this base" }
+      });
+      btn.addEventListener("click", () => {
+        void this.createFileForView();
+      });
     }
-    if (yamlLines.length === 1) {
-      for (const h of headers) {
-        if (h.toLowerCase() !== "name" && h.toLowerCase() !== "file") {
-          yamlLines.push(`${h}: `);
-        }
+  }
+  renderRow(tbody, entry, properties, renderId) {
+    var _a;
+    const { file } = entry;
+    const row = tbody.createEl("tr");
+    for (const prop of properties) {
+      const td = row.createEl("td");
+      if (prop === "file.name" || prop === "file.file") {
+        this.renderFileLink(td, file);
+      } else {
+        this.renderValue(td, () => entry.getValue(prop));
       }
     }
-    yamlLines.push("---", "", "");
-    const folder = this.guessFolderFromBase(table);
-    const timestamp = (/* @__PURE__ */ new Date()).toISOString().replace(/[-:T]/g, "").slice(0, 14);
-    const fileName = `Untitled ${timestamp}.md`;
-    const filePath = (0, import_obsidian.normalizePath)(
-      folder ? `${folder}/${fileName}` : fileName
-    );
+    const previewTd = row.createEl("td", { cls: "bases-preview-cell" });
+    const cells = (_a = this.previewCells.get(file.path)) != null ? _a : [];
+    cells.push(previewTd);
+    this.previewCells.set(file.path, cells);
+    void this.fillPreview(previewTd, file, renderId);
+  }
+  renderFileLink(td, file) {
+    const link = td.createEl("a", {
+      cls: "internal-link",
+      text: file.basename,
+      attr: { href: file.path, "data-href": file.path }
+    });
+    link.addEventListener("click", (evt) => {
+      evt.preventDefault();
+      void this.app.workspace.openLinkText(file.path, "", import_obsidian.Keymap.isModEvent(evt));
+    });
+    link.addEventListener("mouseover", (evt) => {
+      this.app.workspace.trigger("hover-link", {
+        event: evt,
+        source: "bases",
+        hoverParent: this.app.renderContext,
+        targetEl: link,
+        linktext: file.path
+      });
+    });
+  }
+  renderValue(td, get) {
     try {
-      const file = await this.app.vault.create(
-        filePath,
-        yamlLines.join("\n")
-      );
-      const leaf = this.app.workspace.getLeaf(false);
-      await leaf.openFile(file);
-      new import_obsidian.Notice(`Created ${file.basename}`);
-    } catch (err) {
-      new import_obsidian.Notice("Failed to create note \u2013 see console");
-      console.error("[bases-preview]", err);
+      const value = get();
+      if (!value)
+        return;
+      if (typeof value.renderTo === "function") {
+        value.renderTo(td, this.app.renderContext);
+      } else {
+        td.setText(value.toString());
+      }
+    } catch (e) {
     }
   }
-  /**
-   * Best-effort guess at the folder the Base is scoped to
-   * by inspecting the Base file's own folder.
-   */
-  guessFolderFromBase(table) {
-    const leaf = table.closest(".workspace-leaf-content");
-    if (!leaf)
-      return "";
-    const viewState = leaf.dataset;
-    const active = this.app.workspace.getActiveFile();
-    if (active) {
-      const parts = active.path.split("/");
-      parts.pop();
-      return parts.join("/");
-    }
-    return "";
+  async fillPreview(td, file, renderId) {
+    const preview = await this.plugin.getPreview(file);
+    if (renderId !== this.renderId)
+      return;
+    td.setText(preview);
+    td.title = preview;
   }
-  /* ---- cleanup helpers --------------------------------------- */
-  removeInjected() {
-    document.querySelectorAll(
-      ".bases-preview-cell, .bases-preview-th, .bases-preview-add-btn"
-    ).forEach((el) => el.remove());
+  onFileModified(file) {
+    var _a;
+    for (const td of (_a = this.previewCells.get(file.path)) != null ? _a : []) {
+      void this.fillPreview(td, file, this.renderId);
+    }
   }
 };
+var FRONTMATTER_RE = /^---\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/;
+function extractBody(raw, settings) {
+  const content = raw.replace(FRONTMATTER_RE, "").trim();
+  if (settings.contentSource === "heading" && settings.headingName) {
+    return extractHeadingSection(content, settings.headingName);
+  }
+  return content;
+}
+function extractHeadingSection(content, heading) {
+  const result = [];
+  let captureLevel = 0;
+  for (const line of content.split("\n")) {
+    const match = line.match(/^(#{1,6})\s+(.*)/);
+    if (match) {
+      const level = match[1].length;
+      if (captureLevel && level <= captureLevel)
+        break;
+      if (!captureLevel && match[2].trim().toLowerCase() === heading.toLowerCase()) {
+        captureLevel = level;
+        continue;
+      }
+    }
+    if (captureLevel)
+      result.push(line);
+  }
+  return result.join("\n").trim();
+}
 var BasesPreviewSettingTab = class extends import_obsidian.PluginSettingTab {
   constructor(app, plugin) {
     super(app, plugin);
@@ -336,10 +251,11 @@ var BasesPreviewSettingTab = class extends import_obsidian.PluginSettingTab {
   display() {
     const { containerEl } = this;
     containerEl.empty();
-    containerEl.createEl("h2", { text: "Bases Preview Settings" });
-    new import_obsidian.Setting(containerEl).setName("Preview length").setDesc(
-      "Maximum number of characters shown in the preview column."
-    ).addText(
+    containerEl.createEl("p", {
+      cls: "setting-item-description",
+      text: 'In a base, open the view menu and add a "Table with previews" view.'
+    });
+    new import_obsidian.Setting(containerEl).setName("Preview length").setDesc("Maximum number of characters shown in the preview column.").addText(
       (text) => text.setPlaceholder("200").setValue(String(this.plugin.settings.previewLength)).onChange(async (value) => {
         const n = parseInt(value, 10);
         if (!isNaN(n) && n > 0) {
@@ -348,9 +264,7 @@ var BasesPreviewSettingTab = class extends import_obsidian.PluginSettingTab {
         }
       })
     );
-    new import_obsidian.Setting(containerEl).setName("Content source").setDesc(
-      "Choose whether to preview the full note body or text under a specific heading."
-    ).addDropdown(
+    new import_obsidian.Setting(containerEl).setName("Content source").setDesc("Preview the full note body or only the text under a specific heading.").addDropdown(
       (drop) => drop.addOption("full-body", "Full body").addOption("heading", "Specific heading").setValue(this.plugin.settings.contentSource).onChange(async (value) => {
         this.plugin.settings.contentSource = value;
         await this.plugin.saveSettings();
@@ -358,9 +272,7 @@ var BasesPreviewSettingTab = class extends import_obsidian.PluginSettingTab {
       })
     );
     if (this.plugin.settings.contentSource === "heading") {
-      new import_obsidian.Setting(containerEl).setName("Heading name").setDesc(
-        "The heading whose content to use as the preview (case-insensitive)."
-      ).addText(
+      new import_obsidian.Setting(containerEl).setName("Heading name").setDesc("The heading whose content to use as the preview (case-insensitive).").addText(
         (text) => text.setPlaceholder("e.g. Summary").setValue(this.plugin.settings.headingName).onChange(async (value) => {
           this.plugin.settings.headingName = value.trim();
           await this.plugin.saveSettings();
@@ -368,7 +280,7 @@ var BasesPreviewSettingTab = class extends import_obsidian.PluginSettingTab {
       );
     }
     new import_obsidian.Setting(containerEl).setName("Show + New note button").setDesc(
-      "Display a button below each Base table to quickly create a new note with matching frontmatter."
+      "Show a button below the table that creates a new note matching the base's filters."
     ).addToggle(
       (toggle) => toggle.setValue(this.plugin.settings.showAddButton).onChange(async (value) => {
         this.plugin.settings.showAddButton = value;

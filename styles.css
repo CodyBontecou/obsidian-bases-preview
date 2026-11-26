@@ -1,14 +1,49 @@
 /* ------------------------------------------------------------------ */
-/*  Bases Preview – injected styles                                   */
+/*  Bases Preview – "Table with previews" view                        */
 /* ------------------------------------------------------------------ */
+
+.bases-preview-view {
+  padding: var(--size-4-2) var(--size-4-3);
+}
+
+.bases-preview-scroll {
+  overflow-x: auto;
+}
+
+.bases-preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-ui-small);
+}
+
+.bases-preview-table th,
+.bases-preview-table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--background-modifier-border);
+  text-align: start;
+  vertical-align: top;
+}
+
+.bases-preview-table th {
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.bases-preview-group-row td {
+  padding-top: var(--size-4-3);
+  font-weight: 600;
+  color: var(--text-normal);
+}
+
+.bases-preview-empty {
+  color: var(--text-faint);
+  text-align: center;
+}
 
 /* Preview column header */
 .bases-preview-th {
-  font-weight: 600;
-  color: var(--text-muted);
   font-size: var(--font-smallest);
-  white-space: nowrap;
-  padding: 4px 8px;
 }
 
 /* Preview cell inside each row */
@@ -19,7 +54,6 @@
   white-space: nowrap;
   color: var(--text-muted);
   font-size: var(--font-smallest);
-  padding: 4px 8px;
   line-height: 1.4;
   cursor: default;
 }
@@ -32,8 +66,6 @@
   color: var(--text-normal);
   background: var(--background-secondary);
   border-radius: 4px;
-  z-index: 10;
-  position: relative;
 }
 
 /* "+ New note" button below the table */
@@ -49,6 +81,7 @@
   color: var(--interactive-accent);
   font-size: var(--font-small);
   cursor: pointer;
+  box-shadow: none;
   transition: background 0.15s, color 0.15s;
 }
 

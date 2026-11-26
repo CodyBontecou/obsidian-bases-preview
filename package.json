@@ -1,6 +1,6 @@
 {
   "name": "obsidian-bases-preview",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Show inline note content previews inside Obsidian Bases table rows, plus a quick-add button for new notes.",
   "main": "main.js",
   "scripts": {
@@ -19,7 +19,7 @@
     "@types/node": "^20.11.0",
     "builtin-modules": "^3.3.0",
     "esbuild": "0.20.0",
-    "obsidian": "latest",
+    "obsidian": "^1.14.4",
     "tslib": "2.6.2",
     "typescript": "5.3.3"
   }

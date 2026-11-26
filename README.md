@@ -1,6 +1,8 @@
 # Bases Preview — Obsidian Plugin
 
-> Inline note content previews inside Obsidian **Bases** table rows, plus a one-click button to create new notes with matching frontmatter.
+> A **Table with previews** view for Obsidian **Bases**: inline note content previews in each row, plus a one-click button to create new notes that match the base's filters.
+
+Requires Obsidian 1.10.2 or later. In a base, open the view menu, choose **Add view**, and pick **Table with previews**.
 
 ![Obsidian](https://img.shields.io/badge/Obsidian-plugin-7c3aed?style=flat-square)
 
@@ -10,9 +12,9 @@
 
 | Feature | Description |
 |---------|-------------|
-| **Content preview column** | Adds a "Preview" column to every Bases table showing the first *N* characters of each linked note. |
+| **Content preview column** | The "Table with previews" view shows your base's properties plus a "Preview" column with the first *N* characters of each note. Previews refresh when a note changes. |
 | **Hover expand** | Hover a preview cell to see the full excerpt without leaving the table. |
-| **+ New note button** | A `+ New note` button appears below each Base table. Clicking it creates a markdown file pre-populated with YAML frontmatter matching the table's column headers. |
+| **+ New note button** | A `+ New note` button below the table creates a note pre-filled with the properties the base filters on (for example `status: active`). |
 | **Content source** | Preview the full note body (minus frontmatter) **or** text under a specific heading. |
 | **Configurable length** | Set the preview length (default 200 chars) in settings. |
 
@@ -63,12 +65,9 @@ Open **Settings → Bases Preview** to configure:
 
 ## How It Works
 
-1. **MutationObserver** watches the DOM for changes (Bases dynamically renders its table views).
-2. When a Bases table is detected (via `data-type="bases"` on the workspace leaf or class heuristics), the plugin:
-   - Reads each row's internal link → resolves the `TFile` via `metadataCache`.
-   - Calls `vault.cachedRead()` to get the note content.
-   - Strips frontmatter, optionally extracts a heading section, truncates, and injects a `<td>` cell.
-3. The **+ New note** button introspects column headers and the first row's values to build YAML frontmatter for the new file.
+The plugin registers its own view type with the public Bases API (`registerBasesView`, Obsidian 1.10+). Bases hands the view the filtered, sorted and grouped notes; the view renders each one with the configured properties, then reads the note with `vault.cachedRead()`, strips frontmatter, optionally extracts a heading section, and truncates it for the Preview column. **+ New note** uses Bases' own `createFileForView()`, so new notes match the base's filters.
+
+Versions before 1.1.0 injected cells into the built-in table view's DOM. Obsidian 1.15 rebuilt that table, so those versions stopped showing previews.
 
 ---
 
@@ -77,7 +76,7 @@ Open **Settings → Bases Preview** to configure:
 ```
 obsidian-bases-preview/
 ├── main.ts            # Plugin entry point (TypeScript)
-├── styles.css         # Injected styles
+├── styles.css         # View styles
 ├── manifest.json      # Obsidian plugin manifest
 ├── package.json
 ├── tsconfig.json
