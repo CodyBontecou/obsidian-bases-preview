@@ -63,7 +63,8 @@ var BasesPreviewPlugin = class extends import_obsidian.Plugin {
     );
   }
   async loadSettings() {
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    const saved = await this.loadData();
+    this.settings = { ...DEFAULT_SETTINGS, ...saved != null ? saved : {} };
   }
   async saveSettings() {
     await this.saveData(this.settings);
@@ -190,15 +191,9 @@ var PreviewTableView = class extends import_obsidian.BasesView {
     });
   }
   renderValue(td, get) {
+    var _a;
     try {
-      const value = get();
-      if (!value)
-        return;
-      if (typeof value.renderTo === "function") {
-        value.renderTo(td, this.app.renderContext);
-      } else {
-        td.setText(value.toString());
-      }
+      (_a = get()) == null ? void 0 : _a.renderTo(td, this.app.renderContext);
     } catch (e) {
     }
   }
@@ -294,46 +289,5 @@ var BasesPreviewSettingTab = class extends import_obsidian.PluginSettingTab {
     settings[key] = key === "headingName" && typeof value === "string" ? value.trim() : value;
     await this.plugin.saveSettings();
     this.refreshDomState();
-  }
-  /** Fallback for Obsidian 1.10–1.12, which don't support getSettingDefinitions(). */
-  display() {
-    const { containerEl } = this;
-    containerEl.empty();
-    containerEl.createEl("p", {
-      cls: "setting-item-description",
-      text: 'In a base, open the view menu and add a "Table with previews" view.'
-    });
-    new import_obsidian.Setting(containerEl).setName("Preview length").setDesc("Maximum number of characters shown in the preview column.").addText(
-      (text) => text.setPlaceholder("200").setValue(String(this.plugin.settings.previewLength)).onChange(async (value) => {
-        const n = parseInt(value, 10);
-        if (!isNaN(n) && n > 0) {
-          this.plugin.settings.previewLength = n;
-          await this.plugin.saveSettings();
-        }
-      })
-    );
-    new import_obsidian.Setting(containerEl).setName("Content source").setDesc("Preview the full note body or only the text under a specific heading.").addDropdown(
-      (drop) => drop.addOption("full-body", "Full body").addOption("heading", "Specific heading").setValue(this.plugin.settings.contentSource).onChange(async (value) => {
-        this.plugin.settings.contentSource = value;
-        await this.plugin.saveSettings();
-        this.display();
-      })
-    );
-    if (this.plugin.settings.contentSource === "heading") {
-      new import_obsidian.Setting(containerEl).setName("Heading name").setDesc("The heading whose content to use as the preview (case-insensitive).").addText(
-        (text) => text.setPlaceholder("e.g. Summary").setValue(this.plugin.settings.headingName).onChange(async (value) => {
-          this.plugin.settings.headingName = value.trim();
-          await this.plugin.saveSettings();
-        })
-      );
-    }
-    new import_obsidian.Setting(containerEl).setName("Show + New note button").setDesc(
-      "Show a button below the table that creates a new note matching the base's filters."
-    ).addToggle(
-      (toggle) => toggle.setValue(this.plugin.settings.showAddButton).onChange(async (value) => {
-        this.plugin.settings.showAddButton = value;
-        await this.plugin.saveSettings();
-      })
-    );
   }
 };

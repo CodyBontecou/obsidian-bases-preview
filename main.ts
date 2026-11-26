@@ -7,9 +7,9 @@ import {
 	Plugin,
 	PluginSettingTab,
 	QueryController,
-	Setting,
 	SettingDefinitionItem,
 	TFile,
+	Value,
 } from "obsidian";
 
 /* ------------------------------------------------------------------ */
@@ -73,7 +73,8 @@ export default class BasesPreviewPlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		const saved = (await this.loadData()) as Partial<BasesPreviewSettings> | null;
+		this.settings = { ...DEFAULT_SETTINGS, ...(saved ?? {}) };
 	}
 
 	async saveSettings() {
@@ -234,15 +235,9 @@ class PreviewTableView extends BasesView {
 		});
 	}
 
-	private renderValue(td: HTMLElement, get: () => unknown) {
+	private renderValue(td: HTMLElement, get: () => Value | null | undefined) {
 		try {
-			const value = get() as { renderTo?: Function; toString(): string } | null;
-			if (!value) return;
-			if (typeof value.renderTo === "function") {
-				value.renderTo(td, this.app.renderContext);
-			} else {
-				td.setText(value.toString());
-			}
+			get()?.renderTo(td, this.app.renderContext);
 		} catch {
 			// A broken formula shouldn't take down the whole view.
 		}
@@ -354,76 +349,5 @@ class BasesPreviewSettingTab extends PluginSettingTab {
 		settings[key] = key === "headingName" && typeof value === "string" ? value.trim() : value;
 		await this.plugin.saveSettings();
 		this.refreshDomState(); // show/hide "Heading name"
-	}
-
-	/** Fallback for Obsidian 1.10–1.12, which don't support getSettingDefinitions(). */
-	display(): void {
-		const { containerEl } = this;
-		containerEl.empty();
-
-		containerEl.createEl("p", {
-			cls: "setting-item-description",
-			text: 'In a base, open the view menu and add a "Table with previews" view.',
-		});
-
-		new Setting(containerEl)
-			.setName("Preview length")
-			.setDesc("Maximum number of characters shown in the preview column.")
-			.addText((text) =>
-				text
-					.setPlaceholder("200")
-					.setValue(String(this.plugin.settings.previewLength))
-					.onChange(async (value) => {
-						const n = parseInt(value, 10);
-						if (!isNaN(n) && n > 0) {
-							this.plugin.settings.previewLength = n;
-							await this.plugin.saveSettings();
-						}
-					})
-			);
-
-		new Setting(containerEl)
-			.setName("Content source")
-			.setDesc("Preview the full note body or only the text under a specific heading.")
-			.addDropdown((drop) =>
-				drop
-					.addOption("full-body", "Full body")
-					.addOption("heading", "Specific heading")
-					.setValue(this.plugin.settings.contentSource)
-					.onChange(async (value) => {
-						this.plugin.settings.contentSource = value as "full-body" | "heading";
-						await this.plugin.saveSettings();
-						this.display();
-					})
-			);
-
-		if (this.plugin.settings.contentSource === "heading") {
-			new Setting(containerEl)
-				.setName("Heading name")
-				.setDesc("The heading whose content to use as the preview (case-insensitive).")
-				.addText((text) =>
-					text
-						.setPlaceholder("e.g. Summary")
-						.setValue(this.plugin.settings.headingName)
-						.onChange(async (value) => {
-							this.plugin.settings.headingName = value.trim();
-							await this.plugin.saveSettings();
-						})
-				);
-		}
-
-		new Setting(containerEl)
-			.setName("Show + New note button")
-			.setDesc(
-				"Show a button below the table that creates a new note matching the base's filters."
-			)
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.showAddButton)
-					.onChange(async (value) => {
-						this.plugin.settings.showAddButton = value;
-						await this.plugin.saveSettings();
-					})
-			);
 	}
 }
