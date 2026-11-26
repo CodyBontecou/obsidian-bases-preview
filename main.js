@@ -78,7 +78,7 @@ var BasesPreviewPlugin = class extends import_obsidian.Plugin {
     try {
       const body = extractBody(await this.app.vault.cachedRead(file), this.settings);
       const len = this.settings.previewLength;
-      return body.length <= len ? body : body.slice(0, len).trimEnd() + "\u2026";
+      return body.length <= len ? body : body.slice(0, len).replace(/\s+$/, "") + "\u2026";
     } catch (e) {
       return "";
     }
