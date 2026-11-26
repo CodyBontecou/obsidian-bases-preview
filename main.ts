@@ -8,6 +8,7 @@ import {
 	PluginSettingTab,
 	QueryController,
 	Setting,
+	SettingDefinitionItem,
 	TFile,
 } from "obsidian";
 
@@ -305,6 +306,57 @@ class BasesPreviewSettingTab extends PluginSettingTab {
 		super(app, plugin);
 	}
 
+	/** Declarative settings (Obsidian 1.13+), which also makes them searchable. */
+	getSettingDefinitions(): SettingDefinitionItem[] {
+		const settings = this.plugin.settings;
+		return [
+			{
+				name: "Preview length",
+				desc: "Maximum number of characters shown in the preview column.",
+				control: {
+					type: "number",
+					key: "previewLength",
+					defaultValue: DEFAULT_SETTINGS.previewLength,
+					min: 1,
+					validate: (n) => (Number.isInteger(n) && n > 0 ? undefined : "Enter a whole number above 0."),
+				},
+			},
+			{
+				name: "Content source",
+				desc: "Preview the full note body or only the text under a specific heading.",
+				control: {
+					type: "dropdown",
+					key: "contentSource",
+					defaultValue: DEFAULT_SETTINGS.contentSource,
+					options: { "full-body": "Full body", heading: "Specific heading" },
+				},
+			},
+			{
+				name: "Heading name",
+				desc: "The heading whose content to use as the preview (case-insensitive).",
+				visible: () => settings.contentSource === "heading",
+				control: { type: "text", key: "headingName", placeholder: "e.g. Summary" },
+			},
+			{
+				name: "Show + New note button",
+				desc: "Show a button below the table that creates a new note matching the base's filters.",
+				control: { type: "toggle", key: "showAddButton", defaultValue: DEFAULT_SETTINGS.showAddButton },
+			},
+		];
+	}
+
+	getControlValue(key: string): unknown {
+		return this.plugin.settings[key as keyof BasesPreviewSettings];
+	}
+
+	async setControlValue(key: string, value: unknown): Promise<void> {
+		const settings = this.plugin.settings as unknown as Record<string, unknown>;
+		settings[key] = key === "headingName" && typeof value === "string" ? value.trim() : value;
+		await this.plugin.saveSettings();
+		this.refreshDomState(); // show/hide "Heading name"
+	}
+
+	/** Fallback for Obsidian 1.10–1.12, which don't support getSettingDefinitions(). */
 	display(): void {
 		const { containerEl } = this;
 		containerEl.empty();
